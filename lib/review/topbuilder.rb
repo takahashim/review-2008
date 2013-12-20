@@ -1,0 +1,287 @@
+# -*- encoding: EUC-JP -*-
+#
+# $Id: topbuilder.rb 3789 2008-01-04 04:42:09Z kmuto $
+#
+# Copyright (c) 2002-2006 Minero Aoki
+#
+# This program is free software.
+# You can distribute or modify this program under the terms of
+# the GNU LGPL, Lesser General Public License version 2.1.
+#
+
+require 'review/builder'
+require 'review/textutils'
+
+module ReVIEW
+
+  class TOPBuilder < Builder
+
+    include TextUtils
+
+    def builder_init_file
+      @section = 0
+      @blank_seen = true
+    end
+    private :builder_init_file
+
+    def print(s)
+      @blank_seen = false
+      super
+    end
+    private :print
+
+    def puts(s)
+      @blank_seen = false
+      super
+    end
+    private :puts
+
+    def blank
+      @output.puts unless @blank_seen
+      @blank_seen = true
+    end
+    private :blank
+
+    def result
+      @output.string
+    end
+
+    def warn(msg)
+      $stderr.puts "#{@location.filename}:#{@location.lineno}: warning: #{msg}"
+    end
+
+    def error(msg)
+      $stderr.puts "#{@location.filename}:#{@location.lineno}: error: #{msg}"
+    end
+
+    def messages
+      error_messages() + warning_messages()
+    end
+
+    def headline(level, caption)
+      blank
+      case level
+      when 1
+        puts "¢£H1¢£Âè#{@chapter.number}¾Ï¡¡#{caption}"
+      when 2
+        puts "¢£H2¢£#{@chapter.number}.#{@section += 1}¡¡#{caption}"
+      when 3
+        puts "¢£H3¢£#{caption}"
+      when 4
+        puts "¢£H4¢£#{caption}"
+      else
+        raise "caption level too deep or unsupported: #{level}"
+      end
+    end
+
+    def column_begin(level, caption)
+      blank
+      puts "¢¡¢ª³«»Ï:¥³¥é¥à -ÊÔ½¸¼Ô¢«¢¡"
+      puts "¢£#{caption}"
+    end
+
+    def column_end(level)
+      puts "¢¡¢ª½ªÎ»:¥³¥é¥à -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def ul_begin
+      blank
+    end
+
+    def ul_item(lines)
+      puts "¡ü\t#{lines.join('')}"
+    end
+
+    def ul_end
+      blank
+    end
+
+    def ol_begin
+      blank
+      @olitem = 0
+    end
+
+    def ol_item(lines)
+      puts "#{@olitem += 1}\t#{lines.join('')}"
+    end
+
+    def ol_end
+      blank
+      @olitem = nil
+    end
+
+    def dl_begin
+      blank
+    end
+
+    def dt(line)
+      puts "¡ú#{line}¡ù"
+    end
+
+    def dd(lines)
+      split_paragraph(lines).each do |paragraph|
+        puts "\t#{paragraph.gsub(/\n/, '')}"
+      end
+    end
+
+    def split_paragraph(lines)
+      lines.map {|line| line.strip }.join("\n").strip.split("\n\n")
+    end
+
+    def dl_end
+      blank
+    end
+
+    def paragraph(lines)
+      puts lines.join('')
+    end
+
+    alias read paragraph
+
+    def inline_list(id)
+      "¥ê¥¹¥È#{@chapter.number}.#{@chapter.list(id).number}"
+    end
+
+    def list_header(id, caption)
+      blank
+      puts "¢¡¢ª³«»Ï:¥ê¥¹¥È -ÊÔ½¸¼Ô¢«¢¡"
+      puts "¥ê¥¹¥È#{@chapter.number}.#{@chapter.list(id).number}¡¡#{caption}"
+      blank
+    end
+
+    def list_body(lines)
+      lines.each do |line|
+        puts line
+      end
+      puts "¢¡¢ª½ªÎ»:¥ê¥¹¥È -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def emlist(lines)
+      blank
+      puts "¢¡¢ª³«»Ï:¥¤¥ó¥é¥¤¥ó¥ê¥¹¥È -ÊÔ½¸¼Ô¢«¢¡"
+      lines.each do |line|
+        puts line
+      end
+      puts "¢¡¢ª½ªÎ»:¥¤¥ó¥é¥¤¥ó¥ê¥¹¥È -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def cmd(lines)
+      blank
+      puts "¢¡¢ª³«»Ï:¥³¥Þ¥ó¥É -ÊÔ½¸¼Ô¢«¢¡"
+      lines.each do |line|
+        puts line
+      end
+      puts "¢¡¢ª½ªÎ»:¥³¥Þ¥ó¥É -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def inline_img(id)
+      "¿Þ#{@chapter.number}.#{@chapter.image(id).number}"
+    end
+
+    def image(lines, id, caption)
+      blank
+      puts "¢¡¢ª³«»Ï:¿Þ -ÊÔ½¸¼Ô¢«¢¡"
+      puts "¿Þ#{@chapter.number}.#{@chapter.image(id).number}¡¡#{caption}"
+      blank
+      if @chapter.image(id).bound?
+        puts "¢¡¢ª#{@chapter.image(id).path} -ÊÔ½¸¼Ô¢«¢¡"
+      else
+        lines.each do |line|
+          puts line
+        end
+      end
+      puts "¢¡¢ª½ªÎ»:¿Þ -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def inline_table(id)
+      "É½#{@chapter.number}.#{@chapter.table(id).number}"
+    end
+
+    def table_header(id, caption)
+      blank
+      puts "¢¡¢ª³«»Ï:É½ -ÊÔ½¸¼Ô¢«¢¡"
+      puts "É½#{@chapter.number}.#{@chapter.table(id).number}¡¡#{caption}"
+      blank
+    end
+
+    def table_begin(ncols)
+    end
+
+    def tr(rows)
+      puts rows.join("\t")
+    end
+
+    def th(str)
+      "¡ú#{str}¡ù"
+    end
+
+    def td(str)
+      str
+    end
+    
+    def table_end
+      puts "¢¡¢ª½ªÎ»:É½ -ÊÔ½¸¼Ô¢«¢¡"
+      blank
+    end
+
+    def comment(str)
+      puts "¢¡¢ªDTPÃ´ÅöÍÍ:#{str} -ÊÔ½¸¼Ô¢«¢¡"
+    end
+
+    def inline_fn(id)
+      "¡ÚÃí#{@chapter.footnote(id).number}¡Û"
+    end
+
+    def footnote(id, str)
+      puts "¡ÚÃí#{@chapter.footnote(id).number}¡Û#{str}"
+    end
+
+    def compile_kw(word, alt)
+      if alt
+      then "¡ú#{word}¡ù¡Ê#{alt.sub(/^\s+/,"")}¡Ë"
+      else "¡ú#{word}¡ù"
+      end
+    end
+
+    def inline_chap(id)
+      #"¡ÖÂè#{super}¾Ï¡¡#{inline_title(id)}¡×"
+      # "Âè#{super}¾Ï"
+      super
+    end
+
+    def compile_ruby(base, ruby)
+      "#{base}¢¡¢ªDTPÃ´ÅöÍÍ:¡Ö#{base}¡×¤Ë¡Ö#{ruby}¡×¤È¥ë¥Ó -ÊÔ½¸¼Ô¢«¢¡"
+    end
+
+    def inline_bou(str)
+      "#{str}¢¡¢ªDTPÃ´ÅöÍÍ:¡Ö#{str}¡×¤ËËµÅÀ -ÊÔ½¸¼Ô¢«¢¡"
+    end
+
+    def inline_i(str)
+      "¢¥#{str}¡ù"
+    end
+
+    def inline_b(str)
+      "¡ú#{str}¡ù"
+    end
+
+    def inline_ami(str)
+      "#{str}¢¡¢ªDTPÃ´ÅöÍÍ:¡Ö#{str}¡×¤ËÌÖ¥«¥± -ÊÔ½¸¼Ô¢«¢¡"
+    end
+
+    def text(str)
+      str
+    end
+
+    def nofunc_text(str)
+      str
+    end
+
+  end
+
+end   # module ReVIEW
